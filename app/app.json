@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "VapeTrack",
+    "slug": "vapetrack",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B101B"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "io.esperion.vapetrack",
+      "buildNumber": "1.0.0"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0B101B"
+      },
+      "package": "io.esperion.vapetrack",
+      "versionCode": 1,
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
