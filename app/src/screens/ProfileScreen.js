@@ -289,18 +289,30 @@ const ProfileScreen = () => {
     };
 
     const handleSignOut = async () => {
-        Alert.alert(
-            'Sign Out',
-            'Are you sure you want to sign out?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Sign Out',
-                    style: 'destructive',
-                    onPress: async () => await signOut(),
-                },
-            ]
-        );
+        console.log('Sign Out button pressed');
+
+        if (Platform.OS === 'web') {
+            if (window.confirm('Are you sure you want to sign out?')) {
+                console.log('Signing out on web...');
+                await signOut();
+            }
+        } else {
+            Alert.alert(
+                'Sign Out',
+                'Are you sure you want to sign out?',
+                [
+                    { text: 'Cancel', style: 'cancel', onPress: () => console.log('Sign out cancelled') },
+                    {
+                        text: 'Sign Out',
+                        style: 'destructive',
+                        onPress: async () => {
+                            console.log('Signing out on mobile...');
+                            await signOut();
+                        },
+                    },
+                ]
+            );
+        }
     };
 
     const equippedIcon = equippedRewards.icon
