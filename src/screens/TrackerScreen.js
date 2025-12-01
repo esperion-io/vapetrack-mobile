@@ -13,6 +13,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { useUser } from '../context/UserContext';
 import { COLORS, RADIUS, SPACING } from '../utils/constants';
 import Svg, { Circle } from 'react-native-svg';
+import * as Haptics from 'expo-haptics';
 
 const TrackerScreen = () => {
     const { addLog, logs, user, juicePurchases, addJuicePurchase } = useUser();
@@ -84,6 +85,7 @@ const TrackerScreen = () => {
 
     const handlePressIn = () => {
         setIsHolding(true);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         Animated.spring(scaleAnim, {
             toValue: 0.9,
             useNativeDriver: true,
@@ -93,6 +95,7 @@ const TrackerScreen = () => {
 
         holdTimeoutRef.current = setTimeout(() => {
             holdIntervalRef.current = setInterval(() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 addLog();
             }, 200);
         }, 300);
@@ -223,7 +226,13 @@ const TrackerScreen = () => {
                 ) : (
                     <View style={styles.juiceContainer}>
                         {/* New Juice Button */}
-                        <TouchableOpacity style={styles.newJuiceButton} onPress={addJuicePurchase}>
+                        <TouchableOpacity
+                            style={styles.newJuiceButton}
+                            onPress={() => {
+                                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                                addJuicePurchase();
+                            }}
+                        >
                             <Ionicons name="water" size={24} color="#000" />
                             <Text style={styles.newJuiceButtonText}>New Juice Bought</Text>
                         </TouchableOpacity>

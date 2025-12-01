@@ -243,17 +243,18 @@ export const UserProvider = ({ children }) => {
         const now = new Date();
         const today = now.toDateString();
 
+        // Prevent multiple calculations per day
         if (lastXPCalculation === today) return;
 
         const yesterday = new Date(now);
         yesterday.setDate(yesterday.getDate() - 1);
+
         const yesterdayLogs = currentLogs.filter(log => {
             const logDate = new Date(log.timestamp);
             return logDate.toDateString() === yesterday.toDateString();
         });
 
-        if (yesterdayLogs.length === 0) return;
-
+        // Calculate XP based on yesterday's performance
         const PUFFS_PER_ML = 150;
         const ABSORBED_NICOTINE_PER_CIGARETTE = 2;
         const VAPE_ABSORPTION_RATE = 0.5;
@@ -263,16 +264,21 @@ export const UserProvider = ({ children }) => {
         const PUFFS_PER_CIGARETTE = Math.round(ABSORBED_NICOTINE_PER_CIGARETTE / absorbedNicotinePerPuff);
         const oldDailyNicotinePuffs = (user?.cigarettesPerDay || 10) * PUFFS_PER_CIGARETTE;
 
+        // If 0 logs, percentage is 0 (Perfect day!)
         const percentage = (yesterdayLogs.length / oldDailyNicotinePuffs) * 100;
 
         if (percentage < 100) {
             const reduction = 100 - percentage;
             const xpEarned = Math.round(reduction * 10);
-            setUser(prev => ({ ...prev, xp: (prev.xp || 0) + xpEarned }));
-            setLastXPCalculation(today);
-        } else {
-            setLastXPCalculation(today);
+
+            // Only update if we earned XP
+            if (xpEarned > 0) {
+                setUser(prev => ({ ...prev, xp: (prev.xp || 0) + xpEarned }));
+            }
         }
+
+        // Mark today as checked so we don't check again until tomorrow
+        setLastXPCalculation(today);
     };
 
     const onboardUser = (data) => {

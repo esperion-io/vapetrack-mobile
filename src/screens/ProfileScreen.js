@@ -203,11 +203,6 @@ const ProfileScreen = () => {
     const [vapeNicotine, setVapeNicotine] = useState(String(user.currentVape?.nicotine || ''));
     const [vapeCost, setVapeCost] = useState(String(user.currentVape?.cost || ''));
 
-    // If no session, show auth form
-    if (!session) {
-        return <AuthForm />;
-    }
-
     // Update smoke-free timer
     useEffect(() => {
         if (!user.isSmokeFree || !user.smokeFreeStartTime) return;
@@ -235,6 +230,11 @@ const ProfileScreen = () => {
         const interval = setInterval(updateTimer, 1000);
         return () => clearInterval(interval);
     }, [user.isSmokeFree, user.smokeFreeStartTime]);
+
+    // If no session, show auth form
+    if (!session) {
+        return <AuthForm />;
+    }
 
     const shareMessage = `🎉 I've been smoke-free for ${smokeFreeTime}! Join me on my journey with VapeTrack! 💪`;
 
@@ -325,10 +325,10 @@ const ProfileScreen = () => {
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
-                {/* Golden Smoke-Free Button */}
+                {/* Cold Turkey Button */}
                 {!user.isSmokeFree && (
-                    <TouchableOpacity style={styles.goldenButton} onPress={toggleSmokeFree}>
-                        <Text style={styles.goldenButtonText}>✨ I HAVE STOPPED SMOKING ✨</Text>
+                    <TouchableOpacity style={styles.coldTurkeyButton} onPress={toggleSmokeFree}>
+                        <Text style={styles.coldTurkeyButtonText}>🦃 I'm Cold Turkey</Text>
                     </TouchableOpacity>
                 )}
 
@@ -718,26 +718,25 @@ const styles = StyleSheet.create({
         textDecorationLine: 'underline',
     },
     // Profile Styles (keeping all previous styles)
-    goldenButton: {
-        width: '100%',
-        padding: SPACING.lg + 4,
-        marginBottom: SPACING.xl,
+    coldTurkeyButton: {
+        alignSelf: 'flex-end',
+        paddingVertical: SPACING.xs,
+        paddingHorizontal: SPACING.sm,
+        marginBottom: SPACING.md,
         backgroundColor: '#FFD700',
-        borderRadius: RADIUS.md,
-        borderWidth: 2,
-        borderColor: '#FFD700',
+        borderRadius: RADIUS.sm,
+        borderWidth: 1,
+        borderColor: '#FFA500',
         shadowColor: '#FFD700',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.5,
-        shadowRadius: 30,
-        elevation: 10,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.4,
+        shadowRadius: 8,
+        elevation: 4,
     },
-    goldenButtonText: {
-        fontSize: 19,
-        fontWeight: '800',
+    coldTurkeyButtonText: {
+        fontSize: 12,
+        fontWeight: '700',
         color: '#000',
-        textAlign: 'center',
-        letterSpacing: 1,
     },
     profileCard: {
         backgroundColor: COLORS.bgSecondary,

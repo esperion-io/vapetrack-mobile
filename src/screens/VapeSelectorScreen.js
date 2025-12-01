@@ -10,28 +10,46 @@ import {
     ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { COLORS, RADIUS, SPACING } from '../utils/constants';
 
 const VapeSelectorScreen = ({ onSelect }) => {
-    const [vapeName, setVapeName] = useState('');
+    const [vapeType, setVapeType] = useState('Pod System');
     const [nicotine, setNicotine] = useState('20');
     const [size, setSize] = useState('2');
     const [cost, setCost] = useState('25');
 
     const handleContinue = () => {
-        if (!vapeName.trim()) {
-            alert('Please enter your vape name');
-            return;
-        }
-
         onSelect({
-            name: vapeName.trim(),
+            name: vapeType, // Use type as name since we removed the name input
             nicotine: parseInt(nicotine) || 20,
             size: parseFloat(size) || 2,
-            type: 'Pod',
+            type: vapeType,
             cost: parseFloat(cost) || 25,
         });
     };
+
+    const renderTypeButton = (type, icon) => (
+        <TouchableOpacity
+            style={[
+                styles.typeButton,
+                vapeType === type && styles.typeButtonActive
+            ]}
+            onPress={() => setVapeType(type)}
+        >
+            <Ionicons
+                name={icon}
+                size={24}
+                color={vapeType === type ? '#000' : COLORS.textSecondary}
+            />
+            <Text style={[
+                styles.typeButtonText,
+                vapeType === type && styles.typeButtonTextActive
+            ]}>
+                {type}
+            </Text>
+        </TouchableOpacity>
+    );
 
     return (
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -43,21 +61,19 @@ const VapeSelectorScreen = ({ onSelect }) => {
                     contentContainerStyle={styles.scrollContent}
                     showsVerticalScrollIndicator={false}
                 >
-                    <Text style={styles.title}>Select Your Vape</Text>
+                    <Text style={styles.title}>Current Vape Setup</Text>
                     <Text style={styles.subtitle}>
                         Tell us about your current vape device
                     </Text>
 
                     <View style={styles.form}>
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Vape Name/Brand</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={vapeName}
-                                onChangeText={setVapeName}
-                                placeholder="e.g., JUUL, Vuse, etc."
-                                placeholderTextColor={COLORS.textSecondary}
-                            />
+                            <Text style={styles.label}>Device Type</Text>
+                            <View style={styles.typeContainer}>
+                                {renderTypeButton('Pod System', 'hardware-chip-outline')}
+                                {renderTypeButton('Vape Pen', 'create-outline')}
+                                {renderTypeButton('Box Mod/Tank', 'cube-outline')}
+                            </View>
                         </View>
 
                         <View style={styles.inputGroup}>
@@ -121,7 +137,7 @@ const styles = StyleSheet.create({
         paddingBottom: SPACING.xl,
     },
     title: {
-        fontSize: 40,
+        fontSize: 32,
         fontWeight: '800',
         color: COLORS.textPrimary,
         marginBottom: SPACING.md,
@@ -153,6 +169,32 @@ const styles = StyleSheet.create({
         color: COLORS.textPrimary,
         borderWidth: 1,
         borderColor: COLORS.bgTertiary,
+    },
+    typeContainer: {
+        gap: SPACING.sm,
+    },
+    typeButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: COLORS.bgSecondary,
+        padding: SPACING.md,
+        borderRadius: RADIUS.md,
+        borderWidth: 1,
+        borderColor: COLORS.bgTertiary,
+        gap: SPACING.md,
+    },
+    typeButtonActive: {
+        backgroundColor: COLORS.accent,
+        borderColor: COLORS.accent,
+    },
+    typeButtonText: {
+        fontSize: 16,
+        color: COLORS.textSecondary,
+        fontWeight: '500',
+    },
+    typeButtonTextActive: {
+        color: '#000',
+        fontWeight: '700',
     },
     button: {
         backgroundColor: COLORS.accent,

@@ -1,0 +1,39 @@
+{
+  "cli": {
+    "version": ">= 14.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "simulator": true
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": false
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://eicnncybfsqdaqltfkrn.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVpY25uY3liZnNxZGFxbHRma3JuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQwMjE3MzksImV4cCI6MjA3OTU5NzczOX0.IM1iPoEtckXc35pNYNWpUzd7c-QLcHROqkrhby5mC6Q"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "ascAppId": "6755805056",
+        "appleTeamId": "336RQ6ASVG"
+      }
+    }
+  }
+}
