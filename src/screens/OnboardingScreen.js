@@ -15,16 +15,22 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, RADIUS, SPACING } from '../utils/constants';
 
 
-const OnboardingScreen = ({ onComplete }) => {
-    const [step, setStep] = useState(1);
-    const [name, setName] = useState('');
+const OnboardingScreen = ({ onComplete, initialName }) => {
+    const [step, setStep] = useState(initialName ? 2 : 1);
+    const [name, setName] = useState(initialName || '');
+    const [userType, setUserType] = useState('former_smoker'); // 'former_smoker' or 'current_vaper'
     const [cigarettesPerDay, setCigarettesPerDay] = useState('10');
     const [cigarettesPerPack, setCigarettesPerPack] = useState('20');
     const [packCost, setPackCost] = useState('15');
+    const [dailyPuffGoal, setDailyPuffGoal] = useState('100');
 
     const handleNext = () => {
         if (!name.trim()) {
             alert('Please enter your name');
+            return;
+        }
+        if (name.trim().length < 3) {
+            alert('Name must be at least 3 characters long');
             return;
         }
         setStep(2);
@@ -33,9 +39,11 @@ const OnboardingScreen = ({ onComplete }) => {
     const handleComplete = () => {
         onComplete({
             name: name.trim(),
+            userType,
             cigarettesPerDay: parseInt(cigarettesPerDay) || 10,
             cigarettesPerPack: parseInt(cigarettesPerPack) || 20,
             packCost: parseFloat(packCost) || 15,
+            dailyPuffGoal: parseInt(dailyPuffGoal) || 100,
         });
     };
 
@@ -86,6 +94,30 @@ const OnboardingScreen = ({ onComplete }) => {
                 <Text style={styles.buttonText}>Get Started</Text>
                 <Ionicons name="arrow-forward" size={20} color="#000" />
             </TouchableOpacity>
+
+            {/* Login Link for Returning Users */}
+            <TouchableOpacity
+                style={styles.loginLink}
+                onPress={() => {
+                    // Skip onboarding for returning users - provide defaults
+                    onComplete({
+                        name: name.trim() || 'Guest',
+                        cigarettesPerDay: 10,
+                        cigarettesPerPack: 20,
+                        packCost: 15,
+                        currentVape: {
+                            name: 'Pod System',
+                            nicotine: 20,
+                            size: 2,
+                            type: 'Pod System',
+                            cost: 25,
+                        },
+                        intent: 'login'
+                    });
+                }}
+            >
+                <Text style={styles.loginLinkText}>Already have an account? Login →</Text>
+            </TouchableOpacity>
         </>
     );
 
@@ -97,45 +129,122 @@ const OnboardingScreen = ({ onComplete }) => {
 
             <Text style={styles.title}>Nice to meet you, {name}!</Text>
             <Text style={styles.subtitle}>
-                To calculate your progress, we need to know a bit about your previous smoking habits.
+                Help us understand your journey so we can track your progress accurately.
             </Text>
 
+            {/* User Type Selection */}
+            <View style={styles.inputGroup}>
+                <Text style={styles.label}>Which best describes you?</Text>
+                <View style={styles.typeContainer}>
+                    <TouchableOpacity
+                        style={[
+                            styles.typeButton,
+                            userType === 'former_smoker' && styles.typeButtonActive
+                        ]}
+                        onPress={() => setUserType('former_smoker')}
+                    >
+                        <Ionicons
+                            name="ban"
+                            size={24}
+                            color={userType === 'former_smoker' ? '#000' : COLORS.textSecondary}
+                        />
+                        <Text style={[
+                            styles.typeButtonText,
+                            userType === 'former_smoker' && styles.typeButtonTextActive
+                        ]}>
+                            Former Smoker
+                        </Text>
+                        <Text style={[
+                            styles.typeButtonSubtext,
+                            userType === 'former_smoker' && styles.typeButtonSubtextActive
+                        ]}>
+                            I switched from cigarettes to vaping
+                        </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[
+                            styles.typeButton,
+                            userType === 'current_vaper' && styles.typeButtonActive
+                        ]}
+                        onPress={() => setUserType('current_vaper')}
+                    >
+                        <Ionicons
+                            name="cloud"
+                            size={24}
+                            color={userType === 'current_vaper' ? '#000' : COLORS.textSecondary}
+                        />
+                        <Text style={[
+                            styles.typeButtonText,
+                            userType === 'current_vaper' && styles.typeButtonTextActive
+                        ]}>
+                            Current Vaper
+                        </Text>
+                        <Text style={[
+                            styles.typeButtonSubtext,
+                            userType === 'current_vaper' && styles.typeButtonSubtextActive
+                        ]}>
+                            I want to reduce my vaping
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+
             <View style={styles.form}>
-                <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Cigarettes per Day (before vaping)</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={cigarettesPerDay}
-                        onChangeText={setCigarettesPerDay}
-                        placeholder="10"
-                        placeholderTextColor={COLORS.textSecondary}
-                        keyboardType="numeric"
-                    />
-                </View>
+                {userType === 'former_smoker' ? (
+                    <>
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.label}>Cigarettes per Day (before vaping)</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={cigarettesPerDay}
+                                onChangeText={setCigarettesPerDay}
+                                placeholder="10"
+                                placeholderTextColor={COLORS.textSecondary}
+                                keyboardType="numeric"
+                            />
+                        </View>
 
-                <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Cigarettes per Pack</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={cigarettesPerPack}
-                        onChangeText={setCigarettesPerPack}
-                        placeholder="20"
-                        placeholderTextColor={COLORS.textSecondary}
-                        keyboardType="numeric"
-                    />
-                </View>
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.label}>Cigarettes per Pack</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={cigarettesPerPack}
+                                onChangeText={setCigarettesPerPack}
+                                placeholder="20"
+                                placeholderTextColor={COLORS.textSecondary}
+                                keyboardType="numeric"
+                            />
+                        </View>
 
-                <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Pack Cost ($)</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={packCost}
-                        onChangeText={setPackCost}
-                        placeholder="15"
-                        placeholderTextColor={COLORS.textSecondary}
-                        keyboardType="decimal-pad"
-                    />
-                </View>
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.label}>Pack Cost ($)</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={packCost}
+                                onChangeText={setPackCost}
+                                placeholder="15"
+                                placeholderTextColor={COLORS.textSecondary}
+                                keyboardType="decimal-pad"
+                            />
+                        </View>
+                    </>
+                ) : (
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Daily Puff Goal</Text>
+                        <Text style={styles.inputHint}>
+                            Set a target for how many puffs you want to take per day. We'll help you track your progress!
+                        </Text>
+                        <TextInput
+                            style={styles.input}
+                            value={dailyPuffGoal}
+                            onChangeText={setDailyPuffGoal}
+                            placeholder="100"
+                            placeholderTextColor={COLORS.textSecondary}
+                            keyboardType="numeric"
+                        />
+                    </View>
+                )}
 
                 <TouchableOpacity style={styles.button} onPress={handleComplete}>
                     <Text style={styles.buttonText}>Continue</Text>
@@ -248,6 +357,46 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: COLORS.bgTertiary,
     },
+    inputHint: {
+        fontSize: 13,
+        color: COLORS.textSecondary,
+        marginBottom: SPACING.sm,
+        lineHeight: 18,
+    },
+    typeContainer: {
+        gap: SPACING.sm,
+    },
+    typeButton: {
+        backgroundColor: COLORS.bgSecondary,
+        padding: SPACING.md,
+        borderRadius: RADIUS.md,
+        borderWidth: 1,
+        borderColor: COLORS.bgTertiary,
+        alignItems: 'center',
+        gap: SPACING.xs,
+    },
+    typeButtonActive: {
+        backgroundColor: COLORS.accent,
+        borderColor: COLORS.accent,
+    },
+    typeButtonText: {
+        fontSize: 16,
+        color: COLORS.textSecondary,
+        fontWeight: '600',
+    },
+    typeButtonTextActive: {
+        color: '#000',
+        fontWeight: '700',
+    },
+    typeButtonSubtext: {
+        fontSize: 12,
+        color: COLORS.textSecondary,
+        textAlign: 'center',
+    },
+    typeButtonSubtextActive: {
+        color: '#000',
+        opacity: 0.8,
+    },
     button: {
         backgroundColor: COLORS.accent,
         borderRadius: RADIUS.md,
@@ -272,6 +421,16 @@ const styles = StyleSheet.create({
         alignSelf: 'flex-start',
         marginBottom: SPACING.lg,
         padding: SPACING.sm,
+    },
+    loginLink: {
+        marginTop: SPACING.lg,
+        padding: SPACING.sm,
+        alignItems: 'center',
+    },
+    loginLinkText: {
+        fontSize: 14,
+        color: COLORS.textSecondary,
+        fontWeight: '500',
     },
 });
 

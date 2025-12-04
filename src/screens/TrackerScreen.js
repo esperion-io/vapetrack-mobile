@@ -10,15 +10,18 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { formatDistanceToNow } from 'date-fns';
+import { usePostHog } from 'posthog-react-native';
 import { useUser } from '../context/UserContext';
 import { COLORS, RADIUS, SPACING } from '../utils/constants';
 import Svg, { Circle } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 
 const TrackerScreen = () => {
+    const posthog = usePostHog();
     const { addLog, logs, user, juicePurchases, addJuicePurchase } = useUser();
     const [timeSinceLastPuff, setTimeSinceLastPuff] = useState('No logs yet');
     const [mode, setMode] = useState('puff'); // 'puff' or 'juice'
+    const [puffMultiplier, setPuffMultiplier] = useState(1);
     const [isHolding, setIsHolding] = useState(false);
     const scaleAnim = useRef(new Animated.Value(1)).current;
     const holdTimeoutRef = useRef(null);
@@ -32,7 +35,12 @@ const TrackerScreen = () => {
     const nicotineContentPerPuff = vapeNicotine / PUFFS_PER_ML;
     const absorbedNicotinePerPuff = nicotineContentPerPuff * VAPE_ABSORPTION_RATE;
     const PUFFS_PER_CIGARETTE = Math.round(ABSORBED_NICOTINE_PER_CIGARETTE / absorbedNicotinePerPuff);
-    const oldDailyNicotinePuffs = (user?.cigarettesPerDay || 10) * PUFFS_PER_CIGARETTE;
+
+    // Determine baseline based on user type
+    const isFormerSmoker = user?.userType !== 'current_vaper'; // Default to former smoker
+    const dailyGoalPuffs = isFormerSmoker
+        ? (user?.cigarettesPerDay || 10) * PUFFS_PER_CIGARETTE
+        : (user?.dailyPuffGoal || 100);
 
     const todayLogs = logs.filter(log => {
         const date = new Date(log.timestamp);
@@ -43,7 +51,7 @@ const TrackerScreen = () => {
     });
 
     const puffCount = todayLogs.length;
-    const progressPercentage = (puffCount / oldDailyNicotinePuffs) * 100;
+    const progressPercentage = (puffCount / dailyGoalPuffs) * 100;
 
     // Circular Progress Constants
     const radius = 80;
@@ -83,6 +91,11 @@ const TrackerScreen = () => {
         return () => clearInterval(interval);
     }, [logs]);
 
+    // Track screen view
+    useEffect(() => {
+        posthog?.screen('Tracker');
+    }, []);
+
     const handlePressIn = () => {
         setIsHolding(true);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -91,12 +104,12 @@ const TrackerScreen = () => {
             useNativeDriver: true,
         }).start();
 
-        addLog();
+        addLog(puffMultiplier);
 
         holdTimeoutRef.current = setTimeout(() => {
             holdIntervalRef.current = setInterval(() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                addLog();
+                addLog(puffMultiplier);
             }, 200);
         }, 300);
     };
@@ -187,7 +200,9 @@ const TrackerScreen = () => {
 
                             <View style={styles.progressText}>
                                 <Text style={styles.progressPercentage}>{Math.round(progressPercentage)}%</Text>
-                                <Text style={styles.progressLabel}>of old habit</Text>
+                                <Text style={styles.progressLabel}>
+                                    {isFormerSmoker ? 'of old habit' : 'of daily limit'}
+                                </Text>
                                 <Text style={styles.puffCount}>{puffCount} puffs today</Text>
                             </View>
                         </View>
@@ -206,6 +221,30 @@ const TrackerScreen = () => {
                             </View>
                         </View>
 
+                        {/* Multiplier Selector */}
+                        <View style={styles.multiplierContainer}>
+                            {[1, 5, 10].map((value) => (
+                                <TouchableOpacity
+                                    key={value}
+                                    style={[
+                                        styles.multiplierButton,
+                                        puffMultiplier === value && styles.multiplierButtonActive
+                                    ]}
+                                    onPress={() => {
+                                        Haptics.selectionAsync();
+                                        setPuffMultiplier(value);
+                                    }}
+                                >
+                                    <Text style={[
+                                        styles.multiplierText,
+                                        puffMultiplier === value && styles.multiplierTextActive
+                                    ]}>
+                                        {value}x
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
                         {/* Floating Action Button */}
                         <View style={styles.fabContainer}>
                             <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
@@ -219,7 +258,9 @@ const TrackerScreen = () => {
                                 </TouchableOpacity>
                             </Animated.View>
                             <Text style={styles.fabLabel}>
-                                {isHolding ? 'Logging...' : 'Tap or Hold to Log'}
+                                {isHolding
+                                    ? `Logging ${puffMultiplier} puff${puffMultiplier > 1 ? 's' : ''}...`
+                                    : `Tap or Hold to Log ${puffMultiplier > 1 ? `(${puffMultiplier}x)` : ''}`}
                             </Text>
                         </View>
                     </>
@@ -357,7 +398,7 @@ const styles = StyleSheet.create({
     progressContainer: {
         width: 240,
         height: 240,
-        marginBottom: SPACING.xl * 1.5,
+        marginBottom: SPACING.md,
         position: 'relative',
         justifyContent: 'center',
         alignItems: 'center',
@@ -404,18 +445,18 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: COLORS.bgSecondary,
         borderRadius: RADIUS.md,
-        padding: SPACING.lg,
+        padding: SPACING.sm,
         alignItems: 'center',
         borderWidth: 1,
         borderColor: COLORS.bgTertiary,
     },
     statLabel: {
-        fontSize: 13,
+        fontSize: 11,
         color: COLORS.textSecondary,
-        marginBottom: SPACING.sm,
+        marginBottom: 2,
     },
     statValue: {
-        fontSize: 18,
+        fontSize: 14,
         fontWeight: '600',
         color: COLORS.textPrimary,
         textAlign: 'center',
@@ -529,6 +570,34 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: COLORS.textSecondary,
         marginTop: SPACING.sm,
+    },
+    multiplierContainer: {
+        flexDirection: 'row',
+        backgroundColor: COLORS.bgSecondary,
+        borderRadius: RADIUS.lg,
+        padding: 4,
+        marginBottom: SPACING.lg,
+        borderWidth: 1,
+        borderColor: COLORS.bgTertiary,
+        gap: 4,
+    },
+    multiplierButton: {
+        paddingVertical: SPACING.sm,
+        paddingHorizontal: SPACING.lg,
+        borderRadius: RADIUS.md,
+        minWidth: 60,
+        alignItems: 'center',
+    },
+    multiplierButtonActive: {
+        backgroundColor: COLORS.primary,
+    },
+    multiplierText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: COLORS.textSecondary,
+    },
+    multiplierTextActive: {
+        color: '#fff',
     },
 });
 

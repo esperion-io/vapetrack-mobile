@@ -31,8 +31,13 @@ const DashboardScreen = () => {
     const absorbedNicotinePerPuff = nicotineContentPerPuff * VAPE_ABSORPTION_RATE;
     const PUFFS_PER_CIGARETTE = Math.round(ABSORBED_NICOTINE_PER_CIGARETTE / absorbedNicotinePerPuff);
 
-    const oldDailyNicotinePuffs = (user?.cigarettesPerDay || 10) * PUFFS_PER_CIGARETTE;
-    const percentage = Math.round((todayLogs.length / oldDailyNicotinePuffs) * 100);
+    // Determine baseline based on user type
+    const isFormerSmoker = user?.userType !== 'current_vaper'; // Default to former smoker
+    const dailyGoalPuffs = isFormerSmoker
+        ? (user?.cigarettesPerDay || 10) * PUFFS_PER_CIGARETTE
+        : (user?.dailyPuffGoal || 100);
+
+    const percentage = Math.round((todayLogs.length / dailyGoalPuffs) * 100);
     const vapedEquivalent = (todayLogs.length / PUFFS_PER_CIGARETTE).toFixed(1);
 
     // Money Saved Logic (EXACT same as web app)
@@ -77,24 +82,29 @@ const DashboardScreen = () => {
         return () => clearInterval(interval);
     }, [user, logs, dailySmokingCost, cigsPerDay, costPerPuff]);
 
-    // Prepare Chart Data (Last 7 Days starting Monday) - EXACT same as web app
+    // Prepare Chart Data (Rolling 7 Days)
     const getWeekDays = () => {
         const today = new Date();
-        const monday = startOfWeek(today, { weekStartsOn: 1 }); // 1 = Monday
-        return Array.from({ length: 7 }).map((_, i) => addDays(monday, i));
+        // Rolling window: last 7 days including today
+        return Array.from({ length: 7 }).map((_, i) => subDays(today, 6 - i));
     };
 
     const chartData = getWeekDays().map((date) => {
         const dayLogs = (logs || []).filter(log => isSameDay(new Date(log.timestamp), date));
-        const cigsEquivalent = dayLogs.length / PUFFS_PER_CIGARETTE;
-        const pct = Math.round((cigsEquivalent / user.cigarettesPerDay) * 100);
+        // For chart, if former smoker, show cigs equivalent. If current vaper, show puffs.
+        const value = isFormerSmoker
+            ? dayLogs.length / PUFFS_PER_CIGARETTE
+            : dayLogs.length;
+
+        const limit = isFormerSmoker ? user.cigarettesPerDay : user.dailyPuffGoal;
+        const pct = Math.round((value / limit) * 100);
 
         return {
             label: format(date, 'EEE'), // Mon, Tue, Wed, etc.
-            value: cigsEquivalent,
+            value: value,
             puffs: dayLogs.length,
             percentage: pct,
-            isAboveLimit: cigsEquivalent > user.cigarettesPerDay
+            isAboveLimit: value > limit
         };
     });
 
@@ -115,9 +125,9 @@ const DashboardScreen = () => {
                 {/* Daily Nicotine Progress */}
                 <View style={styles.progressCard}>
                     <View style={styles.progressHeader}>
-                        <Text style={styles.progressLabel}>Daily Nicotine</Text>
+                        <Text style={styles.progressLabel}>Daily Goal</Text>
                         <Text style={[styles.progressPercentage, { color: getProgressColor(percentage) }]}>
-                            {percentage}% of old habit
+                            {percentage}% of {isFormerSmoker ? 'old habit' : 'daily limit'}
                         </Text>
                     </View>
                     <View style={styles.progressBarTrack}>
@@ -132,45 +142,86 @@ const DashboardScreen = () => {
                         />
                     </View>
                     <Text style={styles.progressSubtext}>
-                        {todayLogs.length} puffs vs {user?.cigarettesPerDay || 0} cigarettes
+                        {todayLogs.length} puffs vs {isFormerSmoker
+                            ? `${user?.cigarettesPerDay || 0} cigarettes`
+                            : `${user?.dailyPuffGoal || 100} puffs limit`}
                     </Text>
                 </View>
 
                 {/* Stats Grid */}
                 <View style={styles.statsGrid}>
-                    {/* Money Saved */}
-                    <View style={styles.statCard}>
-                        <Ionicons
-                            name="cash"
-                            size={24}
-                            color={realTimeSavings < 0 ? COLORS.danger : COLORS.success}
-                            style={styles.statIcon}
-                        />
-                        <Text style={[
-                            styles.statValue,
-                            { color: realTimeSavings < 0 ? COLORS.danger : COLORS.textPrimary }
-                        ]}>
-                            {realTimeSavings < 0
-                                ? `-$${Math.abs(realTimeSavings)}`
-                                : `$${realTimeSavings}`}
-                        </Text>
-                        <Text style={styles.statLabel}>Net Money Saved</Text>
-                        <Text style={styles.statSubLabel}>(minus actual vaping costs)</Text>
-                    </View>
+                    {/* Money Saved - Only relevant for former smokers usually, but maybe useful for vapers too if they want to track cost? 
+                        For now, let's keep it for former smokers, and show something else for current vapers */}
 
-                    {/* Cigs Not Smoked */}
-                    <View style={styles.statCard}>
-                        <Ionicons
-                            name="ban"
-                            size={24}
-                            color={COLORS.textSecondary}
-                            style={styles.statIcon}
-                        />
-                        <Text style={[styles.statValue, styles.monoFont]}>{cigsAvoided}</Text>
-                        <Text style={styles.statLabel}>Cigs Not Smoked</Text>
-                    </View>
+                    {isFormerSmoker ? (
+                        <>
+                            <View style={styles.statCard}>
+                                <Ionicons
+                                    name="cash"
+                                    size={24}
+                                    color={realTimeSavings < 0 ? COLORS.danger : COLORS.success}
+                                    style={styles.statIcon}
+                                />
+                                <Text style={[
+                                    styles.statValue,
+                                    { color: realTimeSavings < 0 ? COLORS.danger : COLORS.textPrimary }
+                                ]}>
+                                    {realTimeSavings < 0
+                                        ? `-$${Math.abs(realTimeSavings)}`
+                                        : `$${realTimeSavings}`}
+                                </Text>
+                                <Text style={styles.statLabel}>Net Money Saved</Text>
+                                <Text style={styles.statSubLabel}>(minus actual vaping costs)</Text>
+                            </View>
 
-                    {/* Today's Vaping Equivalent */}
+                            <View style={styles.statCard}>
+                                <Ionicons
+                                    name="ban"
+                                    size={24}
+                                    color={COLORS.textSecondary}
+                                    style={styles.statIcon}
+                                />
+                                <Text style={[styles.statValue, styles.monoFont]}>{cigsAvoided}</Text>
+                                <Text style={styles.statLabel}>Cigs Not Smoked</Text>
+                            </View>
+                        </>
+                    ) : (
+                        <>
+                            <View style={styles.statCard}>
+                                <Ionicons
+                                    name="stats-chart"
+                                    size={24}
+                                    color={percentage > 100 ? COLORS.danger : COLORS.success}
+                                    style={styles.statIcon}
+                                />
+                                <Text style={[
+                                    styles.statValue,
+                                    { color: percentage > 100 ? COLORS.danger : COLORS.textPrimary }
+                                ]}>
+                                    {Math.max(0, dailyGoalPuffs - todayLogs.length)}
+                                </Text>
+                                <Text style={styles.statLabel}>Puffs Remaining</Text>
+                                <Text style={styles.statSubLabel}>for today</Text>
+                            </View>
+
+                            <View style={styles.statCard}>
+                                <Ionicons
+                                    name="wallet"
+                                    size={24}
+                                    color={COLORS.textSecondary}
+                                    style={styles.statIcon}
+                                />
+                                <Text style={[styles.statValue, styles.monoFont]}>
+                                    ${((logs || []).length * costPerPuff).toFixed(2)}
+                                </Text>
+                                <Text style={styles.statLabel}>Total Spent</Text>
+                                <Text style={styles.statSubLabel}>on vaping so far</Text>
+                            </View>
+                        </>
+                    )}
+
+                    {/* Today's Vaping Equivalent - Keep for both but maybe rephrase for current vapers? 
+                        Actually, nicotine equivalent is still interesting for current vapers to know how many cigs they ARE smoking. */}
                     <View style={[styles.statCard, styles.statCardWide]}>
                         <Text style={styles.statLabelSmall}>Today's Vaping Equivalent</Text>
                         <Text style={[styles.statValueLarge, { color: getProgressColor(percentage) }]}>
@@ -187,19 +238,20 @@ const DashboardScreen = () => {
                     <Text style={styles.chartTitle}>Weekly Trends</Text>
                     <CustomBarChart
                         data={chartData}
-                        oldHabitLine={user.cigarettesPerDay}
+                        oldHabitLine={isFormerSmoker ? user.cigarettesPerDay : user.dailyPuffGoal}
                         width={screenWidth - (SPACING.lg * 2)}
                         height={240}
+                        limitLabel={isFormerSmoker ? 'of old habit' : 'of daily limit'}
                     />
                     {/* Reference line indicator */}
                     <View style={styles.chartLegend}>
                         <View style={styles.legendItem}>
                             <View style={[styles.legendDot, { backgroundColor: COLORS.success }]} />
-                            <Text style={styles.legendText}>Below old habit</Text>
+                            <Text style={styles.legendText}>Below {isFormerSmoker ? 'old habit' : 'daily limit'}</Text>
                         </View>
                         <View style={styles.legendItem}>
                             <View style={[styles.legendDot, { backgroundColor: COLORS.danger }]} />
-                            <Text style={styles.legendText}>Above old habit</Text>
+                            <Text style={styles.legendText}>Above {isFormerSmoker ? 'old habit' : 'daily limit'}</Text>
                         </View>
                     </View>
                 </View>

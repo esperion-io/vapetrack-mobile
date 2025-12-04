@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, StatusBar } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { PostHogProvider } from 'posthog-react-native';
 import { UserProvider, useUser } from './src/context/UserContext';
 import { COLORS } from './src/utils/constants';
 
@@ -33,10 +34,21 @@ function AppContent() {
     });
   };
 
+  const handleBackToOnboarding = () => {
+    onboardUser({
+      ...user,
+      onboardedAt: null
+    });
+  };
+
   if (!user || !user.onboardedAt) {
+    const initialName = (user?.name && user.name !== 'Guest User' && user.name !== 'Guest') ? user.name : null;
     return (
       <View style={styles.container}>
-        <OnboardingScreen onComplete={handleOnboardingComplete} />
+        <OnboardingScreen
+          onComplete={handleOnboardingComplete}
+          initialName={initialName}
+        />
       </View>
     );
   }
@@ -44,7 +56,7 @@ function AppContent() {
   if (!user.currentVape) {
     return (
       <View style={styles.container}>
-        <VapeSelectorScreen onSelect={handleVapeSelect} />
+        <VapeSelectorScreen onSelect={handleVapeSelect} onBack={handleBackToOnboarding} />
       </View>
     );
   }
@@ -78,12 +90,25 @@ function AppContent() {
 
 export default function App() {
   return (
-    <SafeAreaProvider>
-      <UserProvider>
-        <StatusBar barStyle="light-content" backgroundColor={COLORS.bgPrimary} />
-        <AppContent />
-      </UserProvider>
-    </SafeAreaProvider>
+    <PostHogProvider
+      apiKey={process.env.EXPO_PUBLIC_POSTHOG_API_KEY || "phc_2ZqC26J8atHMVWFLuEAWPq0Osl2qPXcnxAuLAftwwvv"}
+      options={{
+        host: "https://us.i.posthog.com",
+        // Enable automatic screen tracking
+        captureApplicationLifecycleEvents: true,
+        // Capture deep links
+        captureDeepLinks: true,
+        // Enable debug mode in development
+        debug: __DEV__,
+      }}
+    >
+      <SafeAreaProvider>
+        <UserProvider>
+          <StatusBar barStyle="light-content" backgroundColor={COLORS.bgPrimary} />
+          <AppContent />
+        </UserProvider>
+      </SafeAreaProvider>
+    </PostHogProvider>
   );
 }
 

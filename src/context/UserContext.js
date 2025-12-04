@@ -1,7 +1,9 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import { usePostHog } from 'posthog-react-native';
 import { supabase } from '../utils/supabaseClient';
+import { EVENTS } from '../utils/analytics';
 
 const UserContext = createContext();
 
@@ -9,9 +11,11 @@ const DEFAULT_USER = {
     name: 'Guest User',
     email: '',
     onboardedAt: null,
+    userType: 'former_smoker', // 'former_smoker' or 'current_vaper'
     cigarettesPerDay: 10,
     cigarettesPerPack: 20,
     packCost: 15,
+    dailyPuffGoal: 100, // For current vapers
     currentVape: null,
     vapeDetails: {
         size: 0,
@@ -27,6 +31,7 @@ const DEFAULT_USER = {
 };
 
 export const UserProvider = ({ children }) => {
+    const posthog = usePostHog(); // Add PostHog hook
     const [session, setSession] = useState(null);
     const [loading, setLoading] = useState(true);
     const [user, setUser] = useState(DEFAULT_USER);
@@ -112,6 +117,7 @@ export const UserProvider = ({ children }) => {
                 .single();
 
             if (profile && profile.data) {
+                // Profile exists, load it
                 setUser(prev => ({
                     ...prev,
                     ...profile.data,
@@ -119,12 +125,9 @@ export const UserProvider = ({ children }) => {
                     name: profile.data.name || profile.username || prev.name
                 }));
             } else if (profileError && profileError.code === 'PGRST116') {
-                const newProfile = {
-                    ...user,
-                    email: userEmail
-                };
+                // Profile doesn't exist - will be created during signup or first sync
+                // Just update email for now, don't create profile yet
                 setUser(prev => ({ ...prev, email: userEmail }));
-                await syncUserToSupabase(newProfile, userId);
             }
 
             const { data: remoteLogs, error: logsError } = await supabase
@@ -144,9 +147,21 @@ export const UserProvider = ({ children }) => {
     const syncUserToSupabase = async (userData, userId = session?.user?.id) => {
         if (!userId) return;
         try {
+            // Generate a unique username based on userId to avoid conflicts
+            // Use the name if it's valid (3+ chars and safe), otherwise use userId-based username
+            let username;
+            if (userData.name && userData.name.trim().length >= 3) {
+                // Use name with userId suffix to ensure uniqueness
+                const safeName = userData.name.trim().replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
+                username = `${safeName}_${userId.slice(0, 8)}`;
+            } else {
+                // Fallback to userId-based username
+                username = `user_${userId.slice(0, 12)}`;
+            }
+
             const updates = {
                 id: userId,
-                username: userData.name,
+                username: username,
                 email: userData.email,
                 data: userData,
                 updated_at: new Date(),
@@ -262,10 +277,15 @@ export const UserProvider = ({ children }) => {
         const nicotineContentPerPuff = vapeNicotine / PUFFS_PER_ML;
         const absorbedNicotinePerPuff = nicotineContentPerPuff * VAPE_ABSORPTION_RATE;
         const PUFFS_PER_CIGARETTE = Math.round(ABSORBED_NICOTINE_PER_CIGARETTE / absorbedNicotinePerPuff);
-        const oldDailyNicotinePuffs = (user?.cigarettesPerDay || 10) * PUFFS_PER_CIGARETTE;
+
+        // Determine baseline based on user type
+        const isFormerSmoker = user?.userType !== 'current_vaper';
+        const dailyGoalPuffs = isFormerSmoker
+            ? (user?.cigarettesPerDay || 10) * PUFFS_PER_CIGARETTE
+            : (user?.dailyPuffGoal || 100);
 
         // If 0 logs, percentage is 0 (Perfect day!)
-        const percentage = (yesterdayLogs.length / oldDailyNicotinePuffs) * 100;
+        const percentage = (yesterdayLogs.length / dailyGoalPuffs) * 100;
 
         if (percentage < 100) {
             const reduction = 100 - percentage;
@@ -287,16 +307,45 @@ export const UserProvider = ({ children }) => {
             ...data,
             onboardedAt: new Date().toISOString(),
         }));
+
+        // Track onboarding completion
+        posthog?.capture(EVENTS.ONBOARDING_COMPLETED, {
+            user_type: data.userType,
+            cigarettes_per_day: data.cigarettesPerDay,
+            daily_puff_goal: data.dailyPuffGoal,
+        });
     };
 
     const updateUser = (newData) => {
         setUser(prev => ({ ...prev, ...newData }));
     };
 
-    const addLog = () => {
-        const newLog = { timestamp: new Date().toISOString() };
-        setLogs(prev => [...prev, newLog]);
-        if (session) syncLogToSupabase(newLog);
+    const addLog = (count = 1) => {
+        const timestamp = new Date().toISOString();
+        const newLogs = Array(count).fill(null).map(() => ({ timestamp }));
+
+        const todayPuffs = logs.filter(l => {
+            const d = new Date(l.timestamp);
+            return d.toDateString() === new Date().toDateString();
+        }).length + count;
+
+        setLogs(prev => [...prev, ...newLogs]);
+
+        if (session) {
+            // Sync all new logs
+            newLogs.forEach(log => syncLogToSupabase(log));
+        }
+
+        // Track puff logged (aggregate event)
+        posthog?.capture(EVENTS.PUFF_LOGGED, {
+            vape_type: user.currentVape?.name,
+            vape_nicotine: user.currentVape?.nicotine,
+            daily_count: todayPuffs,
+            is_smoke_free: user.isSmokeFree,
+            user_xp: user.xp,
+            total_puffs: logs.length + count,
+            batch_size: count
+        });
 
         if (user.isSmokeFree) {
             setUser(prev => ({ ...prev, isSmokeFree: false, smokeFreeStartTime: null }));
@@ -304,10 +353,22 @@ export const UserProvider = ({ children }) => {
     };
 
     const toggleSmokeFree = () => {
+        const newState = !user.isSmokeFree;
+
+        // Track cold turkey toggle
+        posthog?.capture(
+            newState ? EVENTS.COLD_TURKEY_ACTIVATED : EVENTS.COLD_TURKEY_DEACTIVATED,
+            {
+                previous_state: user.isSmokeFree,
+                user_xp: user.xp,
+                total_puffs: logs.length
+            }
+        );
+
         setUser(prev => ({
             ...prev,
-            isSmokeFree: !prev.isSmokeFree,
-            smokeFreeStartTime: !prev.isSmokeFree ? new Date().toISOString() : null
+            isSmokeFree: newState,
+            smokeFreeStartTime: newState ? new Date().toISOString() : null
         }));
     };
 
@@ -378,6 +439,14 @@ export const UserProvider = ({ children }) => {
         if (user.xp >= cost && !purchasedRewards.includes(rewardId)) {
             setUser(prev => ({ ...prev, xp: prev.xp - cost }));
             setPurchasedRewards(prev => [...prev, rewardId]);
+
+            // Track reward purchase
+            posthog?.capture(EVENTS.REWARD_PURCHASED, {
+                reward_id: rewardId,
+                cost: cost,
+                remaining_xp: user.xp - cost
+            });
+
             return true;
         }
         return false;
@@ -426,6 +495,21 @@ export const UserProvider = ({ children }) => {
     const signIn = async (email, password) => {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+
+        // Track login
+        if (data.user) {
+            posthog?.capture(EVENTS.USER_LOGGED_IN, {
+                email: email,
+                user_id: data.user.id
+            });
+
+            // Identify user in PostHog
+            posthog?.identify(data.user.id, {
+                email: email,
+                login_date: new Date().toISOString()
+            });
+        }
+
         return data;
     };
 
@@ -435,21 +519,44 @@ export const UserProvider = ({ children }) => {
                 email,
                 password,
                 options: {
-                    data: { username }
+                    data: {
+                        display_name: username
+                    }
                 }
             });
 
             if (error) throw error;
 
             if (data.user) {
+                // Update local state with the new user info
+                const updatedUserData = {
+                    ...user,
+                    name: username,
+                    email: email
+                };
+
                 setUser(prev => ({
                     ...prev,
                     name: username,
                     email: email
                 }));
 
-                const profileData = { ...user, name: username, email: email };
-                await syncUserToSupabase(profileData, data.user.id);
+                // Track signup
+                posthog?.capture(EVENTS.USER_SIGNED_UP, {
+                    username: username,
+                    email: email,
+                    signup_date: new Date().toISOString()
+                });
+
+                // Identify user in PostHog
+                posthog?.identify(data.user.id, {
+                    email: email,
+                    name: username,
+                    signup_date: new Date().toISOString()
+                });
+
+                // Create profile in database (only once)
+                await syncUserToSupabase(updatedUserData, data.user.id);
             }
 
             return data;
@@ -461,6 +568,12 @@ export const UserProvider = ({ children }) => {
 
     const signOut = async () => {
         try {
+            // Track logout
+            posthog?.capture(EVENTS.USER_LOGGED_OUT);
+
+            // Reset PostHog user
+            posthog?.reset();
+
             // Attempt to sign out from Supabase
             await supabase.auth.signOut();
         } catch (error) {

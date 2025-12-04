@@ -30,28 +30,48 @@ const REWARDS = [
 
 // Auth Form Component
 const AuthForm = () => {
-    const { signIn, signUp, clearData } = useUser();
-    const [isLogin, setIsLogin] = useState(true);
+    const { signIn, signUp, clearData, user, updateUser } = useUser();
+    const [isLogin, setIsLogin] = useState(user?.intent === 'login');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [username, setUsername] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [name, setName] = useState(user?.name || '');
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(false);
     const [successMessage, setSuccessMessage] = useState(null);
+
+    const userName = user?.name || 'there';
 
     const handleSubmit = async () => {
         setError(null);
         setSuccessMessage(null);
         setLoading(true);
+
+        if (!isLogin && password !== confirmPassword) {
+            setError("Passwords don't match");
+            setLoading(false);
+            return;
+        }
+
+        if (!isLogin && name.trim().length < 3) {
+            setError("Name must be at least 3 characters long");
+            setLoading(false);
+            return;
+        }
+
         try {
             if (isLogin) {
                 await signIn(email, password);
             } else {
-                const result = await signUp(email, password, username);
+                const result = await signUp(email, password, name || userName);
                 if (result.user && !result.session) {
                     setSuccessMessage('Account created! Please check your email (including spam folder) to confirm your account.');
                 } else if (result.session) {
                     setSuccessMessage('Account created successfully! You are now logged in.');
+                    // If user came from "Login" skip but decided to sign up, redirect to onboarding
+                    if (user.intent === 'login') {
+                        updateUser({ onboardedAt: null, intent: null });
+                    }
                 }
             }
         } catch (err) {
@@ -61,127 +81,146 @@ const AuthForm = () => {
         }
     };
 
-    const handleClearData = () => {
-        Alert.alert(
-            'Reset Local Guest Data',
-            'Are you sure? This will delete all local data.',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Reset',
-                    style: 'destructive',
-                    onPress: () => clearData(),
-                },
-            ]
-        );
-    };
-
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={styles.authContainer}
+            <ScrollView
+                contentContainerStyle={styles.authScrollContent}
+                showsVerticalScrollIndicator={false}
             >
-                <ScrollView
-                    contentContainerStyle={styles.authScrollContent}
-                    showsVerticalScrollIndicator={false}
-                >
-                    <View style={styles.authCard}>
-                        <Text style={styles.authTitle}>
-                            {isLogin ? 'Welcome Back' : 'Create Account'}
-                        </Text>
+                {/* Personalized Header */}
+                <View style={styles.authHeader}>
+                    <Text style={styles.authGreeting}>Hey {userName}! 👋</Text>
+                    <Text style={styles.authSubtitle}>
+                        {isLogin
+                            ? 'Welcome back! Sign in to sync your progress across devices.'
+                            : `Track your progress and never lose your data. Create an account to get started.`
+                        }
+                    </Text>
+                </View>
 
-                        {error && (
-                            <View style={styles.errorBox}>
-                                <Text style={styles.errorText}>{error}</Text>
-                            </View>
-                        )}
-
-                        {successMessage && (
-                            <View style={styles.successBox}>
-                                <Text style={styles.successText}>{successMessage}</Text>
-                            </View>
-                        )}
-
-                        {!isLogin && (
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.inputLabel}>Username</Text>
-                                <View style={styles.inputWithIcon}>
-                                    <Ionicons name="person" size={18} color={COLORS.textSecondary} style={styles.inputIcon} />
-                                    <TextInput
-                                        style={styles.authInput}
-                                        value={username}
-                                        onChangeText={setUsername}
-                                        placeholder="Username"
-                                        placeholderTextColor={COLORS.textSecondary}
-                                        autoCapitalize="none"
-                                    />
-                                </View>
-                            </View>
-                        )}
-
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.inputLabel}>Email</Text>
-                            <View style={styles.inputWithIcon}>
-                                <Ionicons name="mail" size={18} color={COLORS.textSecondary} style={styles.inputIcon} />
-                                <TextInput
-                                    style={styles.authInput}
-                                    value={email}
-                                    onChangeText={setEmail}
-                                    placeholder="name@example.com"
-                                    placeholderTextColor={COLORS.textSecondary}
-                                    keyboardType="email-address"
-                                    autoCapitalize="none"
-                                />
-                            </View>
-                        </View>
-
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.inputLabel}>Password</Text>
-                            <View style={styles.inputWithIcon}>
-                                <Ionicons name="lock-closed" size={18} color={COLORS.textSecondary} style={styles.inputIcon} />
-                                <TextInput
-                                    style={styles.authInput}
-                                    value={password}
-                                    onChangeText={setPassword}
-                                    placeholder="••••••••"
-                                    placeholderTextColor={COLORS.textSecondary}
-                                    secureTextEntry
-                                    autoCapitalize="none"
-                                />
-                            </View>
-                        </View>
-
-                        <TouchableOpacity
-                            style={[styles.authButton, loading && styles.authButtonDisabled]}
-                            onPress={handleSubmit}
-                            disabled={loading}
-                        >
-                            <Text style={styles.authButtonText}>
-                                {loading ? 'Processing...' : (isLogin ? 'Sign In' : 'Create Account')}
-                            </Text>
-                            {!loading && <Ionicons name="arrow-forward" size={18} color="#fff" />}
-                        </TouchableOpacity>
-
-                        <View style={styles.switchAuthContainer}>
-                            <Text style={styles.switchAuthText}>
-                                {isLogin ? "Don't have an account? " : "Already have an account? "}
-                            </Text>
-                            <TouchableOpacity onPress={() => setIsLogin(!isLogin)}>
-                                <Text style={styles.switchAuthLink}>
-                                    {isLogin ? 'Sign Up' : 'Sign In'}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={styles.divider} />
-
-                        <TouchableOpacity onPress={handleClearData}>
-                            <Text style={styles.resetLink}>Reset Local Guest Data</Text>
-                        </TouchableOpacity>
+                {/* Error/Success Messages */}
+                {error && (
+                    <View style={styles.errorBox}>
+                        <Text style={styles.errorText}>{error}</Text>
                     </View>
-                </ScrollView>
-            </KeyboardAvoidingView>
+                )}
+
+                {successMessage && (
+                    <View style={styles.successBox}>
+                        <Text style={styles.successText}>{successMessage}</Text>
+                    </View>
+                )}
+
+                {/* Name Input */}
+                {!isLogin && (
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>Name</Text>
+                        <View style={styles.inputWithIcon}>
+                            <Ionicons name="person" size={18} color={COLORS.textSecondary} style={styles.inputIcon} />
+                            <TextInput
+                                style={styles.authInput}
+                                value={name}
+                                onChangeText={setName}
+                                placeholder="Your Name"
+                                placeholderTextColor={COLORS.textSecondary}
+                                autoCapitalize="words"
+                            />
+                        </View>
+                    </View>
+                )}
+
+                {/* Email Input */}
+                <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Email</Text>
+                    <View style={styles.inputWithIcon}>
+                        <Ionicons name="mail" size={18} color={COLORS.textSecondary} style={styles.inputIcon} />
+                        <TextInput
+                            style={styles.authInput}
+                            value={email}
+                            onChangeText={setEmail}
+                            placeholder="name@example.com"
+                            placeholderTextColor={COLORS.textSecondary}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                        />
+                    </View>
+                </View>
+
+                {/* Password Input */}
+                <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Password</Text>
+                    <View style={styles.inputWithIcon}>
+                        <Ionicons name="lock-closed" size={18} color={COLORS.textSecondary} style={styles.inputIcon} />
+                        <TextInput
+                            style={styles.authInput}
+                            value={password}
+                            onChangeText={setPassword}
+                            placeholder="••••••••"
+                            placeholderTextColor={COLORS.textSecondary}
+                            secureTextEntry
+                            autoCapitalize="none"
+                            textContentType="none"
+                            autoComplete="off"
+                        />
+                    </View>
+                </View>
+
+                {/* Confirm Password Input */}
+                {!isLogin && (
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>Confirm Password</Text>
+                        <View style={styles.inputWithIcon}>
+                            <Ionicons name="lock-closed" size={18} color={COLORS.textSecondary} style={styles.inputIcon} />
+                            <TextInput
+                                style={styles.authInput}
+                                value={confirmPassword}
+                                onChangeText={setConfirmPassword}
+                                placeholder="••••••••"
+                                placeholderTextColor={COLORS.textSecondary}
+                                secureTextEntry
+                                autoCapitalize="none"
+                                textContentType="none"
+                                autoComplete="off"
+                            />
+                        </View>
+                    </View>
+                )}
+
+                {/* Submit Button */}
+                <TouchableOpacity
+                    style={[styles.authButton, loading && styles.authButtonDisabled]}
+                    onPress={handleSubmit}
+                    disabled={loading}
+                >
+                    <Text style={styles.authButtonText}>
+                        {loading ? 'Processing...' : (isLogin ? 'Sign In' : 'Create Account')}
+                    </Text>
+                    {!loading && <Ionicons name="arrow-forward" size={18} color="#fff" />}
+                </TouchableOpacity>
+
+                {/* Switch Auth Mode */}
+                <View style={styles.switchAuthContainer}>
+                    <Text style={styles.switchAuthText}>
+                        {isLogin ? "Don't have an account? " : "Already have an account? "}
+                    </Text>
+                    <TouchableOpacity onPress={() => setIsLogin(!isLogin)}>
+                        <Text style={styles.switchAuthLink}>
+                            {isLogin ? 'Sign Up' : 'Sign In'}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Divider */}
+                <View style={styles.divider} />
+
+                {/* Continue as Guest Info */}
+                <View style={styles.guestInfo}>
+                    <Ionicons name="information-circle-outline" size={20} color={COLORS.textSecondary} />
+                    <Text style={styles.guestInfoText}>
+                        You're currently using VapeTrack as a guest. Your data is saved locally on this device only.
+                    </Text>
+                </View>
+            </ScrollView>
         </SafeAreaView>
     );
 };
@@ -191,9 +230,11 @@ const ProfileScreen = () => {
     const { user, session, updateUser, signOut, clearData, equippedRewards, toggleSmokeFree } = useUser();
     const [isEditing, setIsEditing] = useState(false);
     const [name, setName] = useState(user.name || '');
+    const [userType, setUserType] = useState(user.userType || 'former_smoker');
     const [cigsPerDay, setCigsPerDay] = useState(String(user.cigarettesPerDay || ''));
     const [cigsPerPack, setCigsPerPack] = useState(String(user.cigarettesPerPack || ''));
     const [packCost, setPackCost] = useState(String(user.packCost || ''));
+    const [dailyPuffGoal, setDailyPuffGoal] = useState(String(user.dailyPuffGoal || '100'));
     const [smokeFreeTime, setSmokeFreeTime] = useState('');
     const [copySuccess, setCopySuccess] = useState(false);
 
@@ -255,11 +296,19 @@ const ProfileScreen = () => {
     };
 
     const handleSave = () => {
+        // Validate name
+        if (!name.trim() || name.trim().length < 3) {
+            Alert.alert('Invalid Name', 'Name must be at least 3 characters long');
+            return;
+        }
+
         updateUser({
-            name,
+            name: name.trim(),
+            userType,
             cigarettesPerDay: parseInt(cigsPerDay) || 0,
             cigarettesPerPack: parseInt(cigsPerPack) || 0,
             packCost: parseFloat(packCost) || 0,
+            dailyPuffGoal: parseInt(dailyPuffGoal) || 100,
             currentVape: {
                 ...user.currentVape,
                 name: vapeName,
@@ -277,9 +326,11 @@ const ProfileScreen = () => {
         } else {
             // Sync local state with current user data before editing
             setName(user.name || '');
+            setUserType(user.userType || 'former_smoker');
             setCigsPerDay(String(user.cigarettesPerDay || ''));
             setCigsPerPack(String(user.cigarettesPerPack || ''));
             setPackCost(String(user.packCost || ''));
+            setDailyPuffGoal(String(user.dailyPuffGoal || '100'));
             setVapeName(user.currentVape?.name || '');
             setVapeSize(String(user.currentVape?.size || ''));
             setVapeNicotine(String(user.currentVape?.nicotine || ''));
@@ -523,60 +574,127 @@ const ProfileScreen = () => {
                     )}
                 </View>
 
-                {/* Cigarette Card */}
+                {/* Habit Settings Card */}
                 <View style={styles.card}>
-                    <Text style={styles.cardTitle}>Cigarette</Text>
+                    <Text style={styles.cardTitle}>Habit Settings</Text>
 
                     {isEditing ? (
                         <View>
-                            <View style={styles.inputRow}>
-                                <View style={styles.inputHalf}>
-                                    <Text style={styles.inputLabel}>Per Day</Text>
-                                    <TextInput
-                                        style={styles.input}
-                                        value={cigsPerDay}
-                                        onChangeText={setCigsPerDay}
-                                        keyboardType="numeric"
-                                        placeholderTextColor={COLORS.textSecondary}
+                            {/* User Type Selection */}
+                            <View style={styles.typeContainer}>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.typeButton,
+                                        userType === 'former_smoker' && styles.typeButtonActive
+                                    ]}
+                                    onPress={() => setUserType('former_smoker')}
+                                >
+                                    <Ionicons
+                                        name="ban"
+                                        size={20}
+                                        color={userType === 'former_smoker' ? '#000' : COLORS.textSecondary}
                                     />
-                                </View>
-                                <View style={styles.inputHalf}>
-                                    <Text style={styles.inputLabel}>Per Pack</Text>
-                                    <TextInput
-                                        style={styles.input}
-                                        value={cigsPerPack}
-                                        onChangeText={setCigsPerPack}
-                                        keyboardType="numeric"
-                                        placeholderTextColor={COLORS.textSecondary}
+                                    <Text style={[
+                                        styles.typeButtonText,
+                                        userType === 'former_smoker' && styles.typeButtonTextActive
+                                    ]}>
+                                        Former Smoker
+                                    </Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={[
+                                        styles.typeButton,
+                                        userType === 'current_vaper' && styles.typeButtonActive
+                                    ]}
+                                    onPress={() => setUserType('current_vaper')}
+                                >
+                                    <Ionicons
+                                        name="cloud"
+                                        size={20}
+                                        color={userType === 'current_vaper' ? '#000' : COLORS.textSecondary}
                                     />
-                                </View>
+                                    <Text style={[
+                                        styles.typeButtonText,
+                                        userType === 'current_vaper' && styles.typeButtonTextActive
+                                    ]}>
+                                        Current Vaper
+                                    </Text>
+                                </TouchableOpacity>
                             </View>
 
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.inputLabel}>Pack Cost ($)</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    value={packCost}
-                                    onChangeText={setPackCost}
-                                    keyboardType="numeric"
-                                    placeholderTextColor={COLORS.textSecondary}
-                                />
-                            </View>
+                            {userType === 'former_smoker' ? (
+                                <>
+                                    <View style={styles.inputRow}>
+                                        <View style={styles.inputHalf}>
+                                            <Text style={styles.inputLabel}>Cigs/Day</Text>
+                                            <TextInput
+                                                style={styles.input}
+                                                value={cigsPerDay}
+                                                onChangeText={setCigsPerDay}
+                                                keyboardType="numeric"
+                                                placeholderTextColor={COLORS.textSecondary}
+                                            />
+                                        </View>
+                                        <View style={styles.inputHalf}>
+                                            <Text style={styles.inputLabel}>Cigs/Pack</Text>
+                                            <TextInput
+                                                style={styles.input}
+                                                value={cigsPerPack}
+                                                onChangeText={setCigsPerPack}
+                                                keyboardType="numeric"
+                                                placeholderTextColor={COLORS.textSecondary}
+                                            />
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.inputGroup}>
+                                        <Text style={styles.inputLabel}>Pack Cost ($)</Text>
+                                        <TextInput
+                                            style={styles.input}
+                                            value={packCost}
+                                            onChangeText={setPackCost}
+                                            keyboardType="numeric"
+                                            placeholderTextColor={COLORS.textSecondary}
+                                        />
+                                    </View>
+                                </>
+                            ) : (
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.inputLabel}>Daily Puff Goal</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        value={dailyPuffGoal}
+                                        onChangeText={setDailyPuffGoal}
+                                        keyboardType="numeric"
+                                        placeholderTextColor={COLORS.textSecondary}
+                                    />
+                                </View>
+                            )}
                         </View>
                     ) : (
                         <View style={styles.statsGrid}>
-                            <View style={styles.statBox}>
-                                <Text style={styles.statLabel}>Per Day</Text>
-                                <Text style={styles.statValue}>{user.cigarettesPerDay} cigs</Text>
-                            </View>
-                            <View style={styles.statBox}>
-                                <Text style={styles.statLabel}>Per Pack</Text>
-                                <Text style={styles.statValue}>{user.cigarettesPerPack} cigs</Text>
-                            </View>
-                            <View style={styles.statBox}>
-                                <Text style={styles.statLabel}>Pack Cost</Text>
-                                <Text style={styles.statValue}>${user.packCost}</Text>
-                            </View>
+                            {user.userType === 'former_smoker' ? (
+                                <>
+                                    <View style={styles.statBox}>
+                                        <Text style={styles.statLabel}>Per Day</Text>
+                                        <Text style={styles.statValue}>{user.cigarettesPerDay} cigs</Text>
+                                    </View>
+                                    <View style={styles.statBox}>
+                                        <Text style={styles.statLabel}>Per Pack</Text>
+                                        <Text style={styles.statValue}>{user.cigarettesPerPack} cigs</Text>
+                                    </View>
+                                    <View style={styles.statBox}>
+                                        <Text style={styles.statLabel}>Pack Cost</Text>
+                                        <Text style={styles.statValue}>${user.packCost}</Text>
+                                    </View>
+                                </>
+                            ) : (
+                                <View style={styles.statBox}>
+                                    <Text style={styles.statLabel}>Daily Goal</Text>
+                                    <Text style={styles.statValue}>{user.dailyPuffGoal} puffs</Text>
+                                </View>
+                            )}
                         </View>
                     )}
                 </View>
@@ -615,8 +733,23 @@ const styles = StyleSheet.create({
     },
     authScrollContent: {
         flexGrow: 1,
-        justifyContent: 'center',
         paddingHorizontal: SPACING.lg,
+        paddingTop: SPACING.xl,
+        paddingBottom: SPACING.xl,
+    },
+    authHeader: {
+        marginBottom: SPACING.xl,
+    },
+    authGreeting: {
+        fontSize: 32,
+        fontWeight: '800',
+        color: COLORS.textPrimary,
+        marginBottom: SPACING.sm,
+    },
+    authSubtitle: {
+        fontSize: 16,
+        color: COLORS.textSecondary,
+        lineHeight: 24,
     },
     authCard: {
         backgroundColor: COLORS.bgSecondary,
@@ -710,6 +843,22 @@ const styles = StyleSheet.create({
         height: 1,
         backgroundColor: COLORS.bgTertiary,
         marginVertical: SPACING.xl,
+    },
+    guestInfo: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: SPACING.sm,
+        backgroundColor: COLORS.bgSecondary,
+        padding: SPACING.md,
+        borderRadius: RADIUS.sm,
+        borderWidth: 1,
+        borderColor: COLORS.bgTertiary,
+    },
+    guestInfoText: {
+        flex: 1,
+        fontSize: 13,
+        color: COLORS.textSecondary,
+        lineHeight: 20,
     },
     resetLink: {
         fontSize: 13,
@@ -984,6 +1133,34 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         gap: SPACING.md,
         marginBottom: SPACING.md,
+    },
+    typeContainer: {
+        flexDirection: 'row',
+        gap: SPACING.sm,
+        marginBottom: SPACING.lg,
+    },
+    typeButton: {
+        flex: 1,
+        backgroundColor: COLORS.bgPrimary,
+        padding: SPACING.md,
+        borderRadius: RADIUS.md,
+        borderWidth: 1,
+        borderColor: COLORS.bgTertiary,
+        alignItems: 'center',
+        gap: SPACING.xs,
+    },
+    typeButtonActive: {
+        backgroundColor: COLORS.accent,
+        borderColor: COLORS.accent,
+    },
+    typeButtonText: {
+        fontSize: 14,
+        color: COLORS.textSecondary,
+        fontWeight: '600',
+    },
+    typeButtonTextActive: {
+        color: '#000',
+        fontWeight: '700',
     },
     inputHalf: {
         flex: 1,

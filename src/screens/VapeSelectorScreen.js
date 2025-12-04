@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, RADIUS, SPACING } from '../utils/constants';
 
-const VapeSelectorScreen = ({ onSelect }) => {
+const VapeSelectorScreen = ({ onSelect, onBack }) => {
     const [vapeType, setVapeType] = useState('Pod System');
     const [nicotine, setNicotine] = useState('20');
     const [size, setSize] = useState('2');
@@ -61,6 +61,11 @@ const VapeSelectorScreen = ({ onSelect }) => {
                     contentContainerStyle={styles.scrollContent}
                     showsVerticalScrollIndicator={false}
                 >
+                    {onBack && (
+                        <TouchableOpacity style={styles.backButton} onPress={onBack}>
+                            <Ionicons name="arrow-back" size={24} color={COLORS.textSecondary} />
+                        </TouchableOpacity>
+                    )}
                     <Text style={styles.title}>Current Vape Setup</Text>
                     <Text style={styles.subtitle}>
                         Tell us about your current vape device
@@ -212,6 +217,9 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: '700',
         color: '#000',
+    },
+    backButton: {
+        marginBottom: SPACING.md,
     },
 });
 

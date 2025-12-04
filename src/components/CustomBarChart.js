@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { COLORS, RADIUS, SPACING } from '../utils/constants';
 
-const CustomBarChart = ({ data, oldHabitLine, width, height }) => {
+const CustomBarChart = ({ data, oldHabitLine, width, height, limitLabel = 'of old habit' }) => {
     const [hoveredIndex, setHoveredIndex] = useState(null);
 
     // Find max value for scaling
@@ -12,17 +12,19 @@ const CustomBarChart = ({ data, oldHabitLine, width, height }) => {
 
     return (
         <View style={styles.chartContainer}>
-            {/* Tooltip */}
-            {hoveredIndex !== null && (
-                <View style={styles.tooltip}>
-                    <Text style={styles.tooltipText}>
-                        {data[hoveredIndex].puffs} puffs
-                    </Text>
-                    <Text style={styles.tooltipSubtext}>
-                        {data[hoveredIndex].percentage}% of old habit
-                    </Text>
-                </View>
-            )}
+            {/* Tooltip Container - Fixed Height to prevent jump */}
+            <View style={{ height: 50, justifyContent: 'center', alignItems: 'center', marginBottom: SPACING.sm }}>
+                {hoveredIndex !== null && (
+                    <View style={styles.tooltip}>
+                        <Text style={styles.tooltipText}>
+                            {data[hoveredIndex].puffs} puffs
+                        </Text>
+                        <Text style={styles.tooltipSubtext}>
+                            {data[hoveredIndex].percentage}% {limitLabel}
+                        </Text>
+                    </View>
+                )}
+            </View>
 
             {/* Chart Area */}
             <View style={[styles.chartArea, { height: chartHeight }]}>

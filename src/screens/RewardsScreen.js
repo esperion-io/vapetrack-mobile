@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import ConfettiCannon from 'react-native-confetti-cannon';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useUser } from '../context/UserContext';
@@ -18,8 +20,11 @@ const REWARDS = [
     { id: 'border_rainbow', name: '🌟 Rainbow Border', cost: 10000, type: 'border', description: 'Animated rainbow border' },
 ];
 
+import * as Haptics from 'expo-haptics';
+
 const RewardsScreen = () => {
     const { user, logs, xp, purchasedRewards, equippedRewards, purchaseReward, equipReward, unequipReward } = useUser();
+    const confettiRef = useRef(null);
 
     // Calculate Projected XP for Today (EXACT same logic as web app)
     const calculateProjectedXP = () => {
@@ -36,9 +41,14 @@ const RewardsScreen = () => {
         const nicotineContentPerPuff = vapeNicotine / PUFFS_PER_ML;
         const absorbedNicotinePerPuff = nicotineContentPerPuff * VAPE_ABSORPTION_RATE;
         const PUFFS_PER_CIGARETTE = Math.round(ABSORBED_NICOTINE_PER_CIGARETTE / absorbedNicotinePerPuff);
-        const oldDailyNicotinePuffs = (user?.cigarettesPerDay || 10) * PUFFS_PER_CIGARETTE;
 
-        const percentage = (todayLogs.length / oldDailyNicotinePuffs) * 100;
+        // Determine baseline based on user type
+        const isFormerSmoker = user?.userType !== 'current_vaper';
+        const dailyGoalPuffs = isFormerSmoker
+            ? (user?.cigarettesPerDay || 10) * PUFFS_PER_CIGARETTE
+            : (user?.dailyPuffGoal || 100);
+
+        const percentage = (todayLogs.length / dailyGoalPuffs) * 100;
 
         if (percentage >= 100) return 0;
         return Math.round((100 - percentage) * 10);
@@ -49,11 +59,16 @@ const RewardsScreen = () => {
     const handlePurchase = (reward) => {
         const success = purchaseReward(reward.id, reward.cost);
         if (success) {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            confettiRef.current?.start();
             console.log(`Purchased ${reward.name}!`);
+        } else {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         }
     };
 
     const handleEquip = (reward) => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         if (equippedRewards[reward.type] === reward.id) {
             unequipReward(reward.type);
         } else {
@@ -111,8 +126,17 @@ const RewardsScreen = () => {
                                 style={[
                                     styles.iconCard,
                                     isPurchased && styles.iconCardPurchased,
+                                    isEquipped && styles.iconCardEquipped,
                                 ]}
                             >
+                                {isEquipped && (
+                                    <LinearGradient
+                                        colors={['rgba(16, 185, 129, 0.1)', 'rgba(16, 185, 129, 0.05)']}
+                                        style={StyleSheet.absoluteFill}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 1 }}
+                                    />
+                                )}
                                 <Text style={styles.rewardIcon}>{reward.icon}</Text>
                                 <Text style={styles.rewardName}>{reward.name}</Text>
                                 <Text style={styles.rewardDescription}>{reward.description}</Text>
@@ -169,8 +193,24 @@ const RewardsScreen = () => {
                                 style={[
                                     styles.borderCard,
                                     isPurchased && styles.borderCardPurchased,
+                                    isEquipped && styles.borderCardEquipped,
+                                    // Special styling for Gold/Rainbow borders
+                                    reward.id === 'border_gold' && isEquipped && styles.goldBorderEquipped,
+                                    reward.id === 'border_rainbow' && isEquipped && styles.rainbowBorderEquipped,
                                 ]}
                             >
+                                {isEquipped && (
+                                    <LinearGradient
+                                        colors={
+                                            reward.id === 'border_gold' ? ['rgba(255, 215, 0, 0.15)', 'rgba(255, 215, 0, 0.05)'] :
+                                                reward.id === 'border_rainbow' ? ['rgba(255, 0, 0, 0.1)', 'rgba(0, 0, 255, 0.1)'] :
+                                                    ['rgba(16, 185, 129, 0.1)', 'rgba(16, 185, 129, 0.05)']
+                                        }
+                                        style={StyleSheet.absoluteFill}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 1 }}
+                                    />
+                                )}
                                 <View style={styles.borderCardContent}>
                                     <View>
                                         <Text style={styles.borderName}>{reward.name}</Text>
@@ -212,7 +252,14 @@ const RewardsScreen = () => {
                     })}
                 </View>
             </ScrollView>
-        </SafeAreaView>
+            <ConfettiCannon
+                count={200}
+                origin={{ x: -10, y: 0 }}
+                autoStart={false}
+                ref={confettiRef}
+                fadeOut={true}
+            />
+        </SafeAreaView >
     );
 };
 
@@ -304,6 +351,17 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(45, 212, 191, 0.1)',
         opacity: 0.6,
     },
+    iconCardEquipped: {
+        borderColor: '#10b981',
+        borderWidth: 3,
+        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+        shadowColor: '#10b981',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.6,
+        shadowRadius: 15,
+        elevation: 8,
+        opacity: 1,
+    },
     rewardIcon: {
         fontSize: 40,
         textAlign: 'center',
@@ -369,6 +427,17 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(45, 212, 191, 0.1)',
         opacity: 0.6,
     },
+    borderCardEquipped: {
+        borderColor: '#10b981',
+        borderWidth: 3,
+        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+        shadowColor: '#10b981',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.6,
+        shadowRadius: 15,
+        elevation: 8,
+        opacity: 1,
+    },
     borderCardContent: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -415,6 +484,16 @@ const styles = StyleSheet.create({
     },
     borderPurchaseButtonTextDisabled: {
         color: COLORS.textSecondary,
+    },
+    goldBorderEquipped: {
+        borderColor: '#FFD700',
+        shadowColor: '#FFD700',
+        backgroundColor: 'rgba(255, 215, 0, 0.1)',
+    },
+    rainbowBorderEquipped: {
+        borderColor: '#A855F7', // Purple as base
+        shadowColor: '#A855F7',
+        backgroundColor: 'rgba(168, 85, 247, 0.1)',
     },
 });
 
